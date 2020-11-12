@@ -8,8 +8,8 @@ import (
 	"fmt"
 	"time"
 
+	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/api/global"
-	"go.opentelemetry.io/otel/api/propagation"
 	"go.opentelemetry.io/otel/api/trace"
 
 	"github.com/newrelic/go-agent/v4/internal/logger"
@@ -19,7 +19,7 @@ import (
 // safe.  Therefore, a nil Application pointer can be safely used as a mock.
 type Application struct {
 	tracer      trace.Tracer
-	propagators propagation.Propagators
+	propagators otel.Propagators
 	logger      Logger
 }
 
@@ -141,9 +141,7 @@ func NewApplication(opts ...ConfigOption) (*Application, error) {
 	}
 	propagators := c.OpenTelemetry.Propagators
 	if nil == propagators {
-		propagators = propagation.New(
-			propagation.WithInjectors(trace.TraceContext{}),
-			propagation.WithExtractors(trace.TraceContext{}))
+		propagators = propagators.TraceContext{}
 	}
 
 	if c.Logger == nil {

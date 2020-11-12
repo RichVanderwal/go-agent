@@ -12,10 +12,10 @@ import (
 	"sync"
 
 	"github.com/newrelic/go-agent/v4/internal/sysinfo"
-	"go.opentelemetry.io/otel/api/kv"
-	"go.opentelemetry.io/otel/api/standard"
 	"go.opentelemetry.io/otel/api/trace"
-	"google.golang.org/grpc/codes"
+	"go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/label"
+	"go.opentelemetry.io/otel/semconv"
 )
 
 type span struct {
@@ -193,7 +193,7 @@ func (s *Segment) AddAttribute(key string, val interface{}) {
 	if s.StartTime.span == nil {
 		return
 	}
-	s.StartTime.Span.SetAttribute(key, val)
+	s.setAttribute(key, val)
 }
 
 // End finishes the segment.
@@ -209,6 +209,11 @@ func (s *Segment) End() {
 	s.StartTime.end()
 }
 
+// setAttribute converts between the Go Agent and OTel's attribute handling.
+func (s *Segment) setAttribute(key string, val interface{}) {
+	s.StartTime.Span.SetAttributes(label.Any(key, val))
+}
+
 // AddAttribute adds a key value pair to the current DatastoreSegment.
 //
 // The key must contain fewer than than 255 bytes.  The value must be a
@@ -220,7 +225,8 @@ func (s *DatastoreSegment) AddAttribute(key string, val interface{}) {
 	if s.StartTime.span == nil {
 		return
 	}
-	s.StartTime.Span.SetAttribute(key, val)
+
+	s.setAttribute(key, val)
 }
 
 // End finishes the datastore segment.
@@ -233,9 +239,14 @@ func (s *DatastoreSegment) End() {
 		return
 	}
 
-	s.addRequiredAttributes(s.StartTime.Span.SetAttribute)
+	s.addRequiredAttributes(s.setAttribute)
 	s.StartTime.Span.SetName(s.name())
 	s.StartTime.end()
+}
+
+// setAttribute converts between the Go Agent and OTel's attribute handling.
+func (s *DatastoreSegment) setAttribute(key string, val interface{}) {
+	s.StartTime.Span.SetAttributes(label.Any(key, val))
 }
 
 var (
@@ -322,7 +333,7 @@ func (s *ExternalSegment) AddAttribute(key string, val interface{}) {
 	if s.StartTime.span == nil {
 		return
 	}
-	s.StartTime.Span.SetAttribute(key, val)
+	s.StartTime.Span.SetAttributes(label.Any(key, val))
 }
 
 // End finishes the external segment.
@@ -348,36 +359,36 @@ func (s *ExternalSegment) setSpanStatus(setter func(codes.Code, string)) {
 		code = s.Response.StatusCode
 	}
 	if code < 17 {
-		// Assume the code is already a grpc status code
+		// Assume the code is already a OTel status code
 		c := codes.Code(code)
 		setter(c, c.String())
 	} else {
-		setter(standard.SpanStatusFromHTTPStatusCode(code))
+		setter(semconv.SpanStatusFromHTTPStatusCode(code))
 	}
 }
 
-func (s *ExternalSegment) addRequiredAttributes(setter func(...kv.KeyValue)) {
+func (s *ExternalSegment) addRequiredAttributes(setter func(...label.KeyValue)) {
 	req := s.Request
 	if s.Response != nil && s.Response.Request != nil {
 		req = s.Response.Request
 	}
 	if req != nil {
-		setter(standard.EndUserAttributesFromHTTPRequest(req)...)
+		setter(semconv.EndUserAttributesFromHTTPRequest(req)...)
 		if req.URL != nil {
-			setter(standard.HTTPClientAttributesFromHTTPRequest(req)...)
+			setter(semconv.HTTPClientAttributesFromHTTPRequest(req)...)
 		}
 	}
 
 	if s.Procedure != "" {
-		setter(standard.HTTPMethodKey.String(s.Procedure))
+		setter(semconv.HTTPMethodKey.String(s.Procedure))
 	}
-	setter(standard.HTTPUrlKey.String(s.cleanURL()))
+	setter(semconv.HTTPUrlKey.String(s.cleanURL()))
 
 	lib := s.Library
 	if lib == "" {
 		lib = "http"
 	}
-	setter(kv.Key("http.component").String(lib))
+	setter(label.Key("http.component").String(lib))
 
 	var code int
 	if s.statusCode != nil {
@@ -385,7 +396,7 @@ func (s *ExternalSegment) addRequiredAttributes(setter func(...kv.KeyValue)) {
 	} else if s.Response != nil {
 		code = s.Response.StatusCode
 	}
-	setter(standard.HTTPAttributesFromHTTPStatusCode(code)...)
+	setter(semconv.HTTPAttributesFromHTTPStatusCode(code)...)
 }
 
 func (s *ExternalSegment) cleanURL() string {
@@ -470,7 +481,7 @@ func (s *MessageProducerSegment) AddAttribute(key string, val interface{}) {
 	if s.StartTime.span == nil {
 		return
 	}
-	s.StartTime.Span.SetAttribute(key, val)
+	s.setAttribute(key, val)
 }
 
 // End finishes the message segment.
@@ -482,9 +493,14 @@ func (s *MessageProducerSegment) End() {
 		logAlreadyEnded(s.StartTime, s.name())
 		return
 	}
-	s.addRequiredAttributes(s.StartTime.Span.SetAttribute)
+	s.addRequiredAttributes(s.setAttribute)
 	s.StartTime.Span.SetName(s.name())
 	s.StartTime.end()
+}
+
+// setAttribute converts between the Go Agent and OTel's attribute handling.
+func (s *MessageProducerSegment) setAttribute(key string, val interface{}) {
+	s.StartTime.Span.SetAttributes(label.Any(key, val))
 }
 
 func logAlreadyEnded(st SegmentStartTime, name string) {
