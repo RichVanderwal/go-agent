@@ -38,7 +38,7 @@ const (
 	maxHarvestSlowSQLs  = 10
 	// maxSpanEvents is the maximum number of Span Events that can be captured
 	// per 60-second harvest cycle
-	maxSpanEvents = 1000
+	maxSpanEvents = 4000
 
 	// attributes
 	attributeKeyLengthLimit   = 255
