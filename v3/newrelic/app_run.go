@@ -106,7 +106,7 @@ func newAppRun(config config, reply *internal.ConnectReply) *appRun {
 
 	run.adaptiveSampler = newAdaptiveSampler(
 		time.Duration(reply.SamplingTargetPeriodInSeconds)*time.Second,
-		40,
+		reply.SamplingTarget,
 		time.Now())
 
 	if "" != run.Reply.RunID {
